@@ -1,10 +1,26 @@
 from  optparse  import OptionParser
 import ROOT as rt
-import RootTools
 import array, os
 import random
 
 rt.gROOT.SetBatch(True);
+
+class grid_result():
+    def __init__(self):
+        self.grid = []
+    
+    def add_point(self,msq,mgl,result):
+        if (msq,mgl) not in self.grid:
+            self.grid.append((msq,mgl,result))
+
+class limit_result():
+    def __init__(self, msq, mgl):
+        self.exp, self.obs, self.msq, self.mgl = -1, -1, msq, mgl
+
+    def set_obs(self, obs): self.obs = obs
+    def set_exp(self, exp): self.exp = exp
+    def set_exp_p(self,exp_p): self.exp_p = exp_p
+    def set_exp_m(self,exp_m): self.exp_m = exp_m
 
 def makebins(start_,end_,inc_,inc_inc_):
     bin = start_
@@ -17,7 +33,6 @@ def makebins(start_,end_,inc_,inc_inc_):
     return list
 
 def get_xsec(xsec_file, msq, mgl):
-
     file = open(xsec_file,"r")
     lines = file.readlines()
     lines_stripped = map(lambda(x):x.rstrip("\n"),lines)
@@ -71,26 +86,42 @@ parser.add_option("--mrmin", dest="mrmin",
 
 bins = makebins(options.mrmin, 5., .1, .3)
 
-def make_data_card(signal_file, hist_exp, categories):
-    signal_name = signal_file.split("/")[-1]
-    msq = signal_name.split("_")[1]
-    mgl = signal_name.split("_")[2]    
+def make_data_card(name, file, hist_exp):
+    outfile = open(name,"w")
 
-def draw_grid():
-    pass
+def run_limit(data_card): pass
+
+def parse_limit(root_file): pass
+
+def draw_grid(): pass
 
 #################
 ##MAIN SCRIPT####
 #################
 
 #grab the file contianing th expectation histogram
-in_file = rt.TFile(options.file)
+in_file = rt.TFile(options.filename)
+exp_hist = in_file.Get("hist_high_pred")
 
 #grab the file with lines of signal files for grid
-sig_txt = open(options.sig_files,"READ")
-sig_lines = map(lambda x:x.rstrip("\n"), sig_text.readlines())
+sig_txt = open(options.sig_files,"r")
+sig_lines = map(lambda x:x.rstrip("\n"), sig_txt.readlines())
 
+#declare the grid result
+grid_result = grid_result()
+
+#loop over each point
 for sig_point in sig_lines:
-    print sig_point
+    point_file = rt.TFile(sig_point)
+
+    #parse the masses
+    signal_name = signal_point.split("/")[-1]
+    msq = signal_name.split("_")[1]
+    mgl = signal_name.split("_")[2]    
+
+    #build the datacard
+    data_card_name = "datacard_msq%s_mgl%s.txt" % (msq,mgl)
+    make_data_card(name, point_file, exp_hist)
     
+
 
