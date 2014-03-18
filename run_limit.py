@@ -86,8 +86,37 @@ parser.add_option("--mrmin", dest="mrmin",
 
 bins = makebins(options.mrmin, 5., .1, .3)
 
-def make_data_card(name, file, hist_exp):
+def make_data_card(name, file, hist_exp, hist_obs, n_cat, cat_bins):
     outfile = open(name,"w")
+
+    outfile.write("imax 1\n")
+    outfile.write("jmax %i\n" % n_cat)
+    outfile.write("kmax 3\n")
+
+    #enumerate the channels
+    channel_string="bin\t"
+    for ii in range(n_cat): channel_string+="%i\t" % ii
+    outfile.write(channel_string+"\n")
+
+    #parse the data expectations
+    obs_string="observation\t"
+    for ii in cat_bins: obs_string += "%i\t" % hist_obs.GetBinContent(ii)
+    outfile.write(obs_string+"\n")
+
+    #1 signal and 1 background for each category
+    bin_string = "bin\t"
+    for ii in range(n_cat): bin_string += "%i\t %i\t" % (ii,ii)
+    outfile.write(bin_string+"\n")
+        
+    process_string = "process\t"
+    for ii in range(n_cat): process_string += "sig%i\tbkg%i\t" % (ii,ii) 
+    outfile.write(process_string+"\n")
+    
+    process_string2 = "process\t"
+    for ii in range(n_cat+1): process_string2 += "%i\t" % ii 
+    outfile.write(process_string2+"\n")
+
+    rate_string
 
 def run_limit(data_card): pass
 
