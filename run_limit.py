@@ -50,10 +50,97 @@ class grid_results:
             
             print msq, mgl, "exp: %2.3f + %2.3f - %2.3f  obs: %2.3f " % (res.get_exp(), res.get_exp_p(), res.get_exp_m(), res.get_obs())                
 
+    def build_band(self,hist):
+        n_x = hist.GetNbinsX()
+        n_y = hist.GetNbinsY()
+
+        top_down_y = range(1,n_y+1)[::-1]
+
+        limit_top_down = []
+        for yy in top_down_y:
+            for xx in range(1,n_x+1):
+
+                bin = hist.GetBinContent(xx,yy)
+                last_bin = hist.GetBinContent(xx-1,yy)
+
+                last_bin_mass = hist.GetXaxis().GetBinCenter(xx-1)
+                this_bin_mass = hist.GetXaxis().GetBinCenter(xx)                
+                y_bin_mass = hist.GetYaxis().GetBinCenter(yy)                
+
+                diff_mass = this_bin_mass - last_bin_mass
+
+                if bin > 1.0:
+
+
+                    abs_diff = bin - last_bin
+                    diff_from_1 = 1.0 - last_bin
+                    frac_diff = diff_from_1 / abs_diff
+
+                    mass_limit_x = last_bin_mass + diff_mass * frac_diff
+
+                    limit_top_down.append((mass_limit_x, y_bin_mass))                    
+                    break
+                
+                elif xx == n_x: # we didnt find a bin we must extrapolate the limit
+
+                    linear_slope = (1 - bin) / (bin - last_bin)
+                    mass_limit_x = this_bin_mass + linear_slope * diff_mass
+                    
+                    limit_top_down.append((mass_limit_x, y_bin_mass))
+                    break
+                
+                elif xx == n_x - 1 and hist.GetBinContent(xx+1,yy) < 1: # we wont find a bin
+
+                    linear_slope = (1 - bin) / (bin - last_bin)
+                    mass_limit_x = this_bin_mass + linear_slope * diff_mass
+                    
+                    limit_top_down.append((mass_limit_x, y_bin_mass))
+                    break
+
+
+        return limit_top_down
+
+    def join_two_bands_into_region(self, band1, band2):
+
+        full_band = []
+
+        for ii in reversed(band2): full_band.append(ii)
+
+        for ii in band1: full_band.append(ii)
+
+        full_band.append(band2[-1])
+
+        return full_band
+
+    def build_graph_from_band(self, band):
+        x = []
+        y = []
+
+        sq_masses = grid_results.squark_masses()
+        gl_masses = grid_results.gluino_masses()
+
+        min_val = min(sq_masses + gl_masses)
+        max_val = max(sq_masses + gl_masses)
+
+        for ii in band:
+            x.append(ii[0])
+            y.append(ii[1])
+
+        x_ar = array.array("d",x)
+        y_ar = array.array("d",y)
+
+        gr = rt.TGraph(len(x), x_ar, y_ar)
+
+        gr.SetMinimum(min_val)
+        gr.SetMaximum(max_val)
+
+        return gr
+
     def build_hist_limits(self):
         sq_masses = grid_results.squark_masses()
         gl_masses = grid_results.gluino_masses()
         mres = 100
+        mres2 = mres /2 
 
         min_x, max_x = min(sq_masses), max(sq_masses)
         min_y, max_y = min(gl_masses), max(gl_masses)
@@ -61,10 +148,11 @@ class grid_results:
         n_bins_x = ((max_x - min_x) / mres) + 1
         n_bins_y = ((max_y - min_y) / mres) + 1
         
-        exp_hist = rt.TH2F("exp", "expected limit", n_bins_x, min_x-mres, max_x+mres, n_bins_y, min_y-mres, max_y+mres)
-        exp_p_hist = rt.TH2F("exp_p", "expected limit", n_bins_x, min_x-mres, max_x+mres, n_bins_y, min_y-mres, max_y+mres)
-        exp_m_hist = rt.TH2F("exp_m", "expected limit", n_bins_x, min_x-mres, max_x+mres, n_bins_y, min_y-mres, max_y+mres)
-        obs_hist = rt.TH2F("obs", "obs limit",  n_bins_x, min_x-mres, max_x+mres, n_bins_y, min_y-mres, max_y+mres)
+        exp_hist = rt.TH2F("exp_0", "expected limit", n_bins_x, min_x-mres2, max_x+mres2, n_bins_y, min_y-mres2, max_y+mres2)
+        exp_p_hist = rt.TH2F("exp_p", "expected limit plus", n_bins_x, min_x-mres2, max_x+mres2, n_bins_y, min_y-mres2, max_y+mres2)
+        exp_m_hist = rt.TH2F("exp_m", "expected limit minus", n_bins_x, min_x-mres2, max_x+mres2, n_bins_y, min_y-mres2, max_y+mres2)
+        obs_hist = rt.TH2F("obs", "obs limit",  n_bins_x, min_x-mres2, max_x+mres2, n_bins_y, min_y-mres2, max_y+mres2)
+        delta_hist = rt.TH2F("delta", "delta limit",  n_bins_x, min_x-mres2, max_x+mres2, n_bins_y, min_y-mres2, max_y+mres2)
 
         for point in self.grid:
             #prase the grid point
@@ -78,13 +166,16 @@ class grid_results:
             exp_m = res.get_exp_m()
             obs = res.get_obs()
 
+            delta = (exp - obs) / (exp_p - exp_m)
+
             #fill the values
             exp_hist.Fill(msq, mgl, exp)
             obs_hist.Fill(msq, mgl, obs)            
             exp_p_hist.Fill(msq, mgl, exp_p)
             exp_m_hist.Fill(msq, mgl, exp_m)
+            delta_hist.Fill(msq, mgl, delta)
 
-        return (exp_hist, exp_p_hist, exp_m_hist, obs_hist)
+        return (exp_hist, exp_p_hist, exp_m_hist, obs_hist, delta_hist)
 
 #container for a single limit result
 class limit_result:
@@ -274,7 +365,7 @@ def make_data_card(name,hist_exp, hist_low_exp, hist_obs, sig_pdf, xsec_error, c
 
     #LUMI lognormal
     lumi_string = "lumi\t\tlnN\t\t"
-    for ii in range(1,n_cat+1): lumi_string+="1.11\t-\t"
+    for ii in range(1,n_cat+1): lumi_string+="1.026\t-\t"
     outfile.write(lumi_string+"\n")
 
     #SIGNAL CROSS SECTION lognormal
@@ -342,7 +433,7 @@ for sig_point in sig_lines:
     #errors are assymetric, pick the larger of the two values for error
     (xsec, xsec_down, xsec_up) = get_xsec(options.xsec_file, msq, mgl)
     if options.debug: print "xsec, xsec_down, xsec_up", (xsec, xsec_down, xsec_up)
-    xsec_error = max(xsec_down,xsec_up) / xsec 
+    xsec_error = min(xsec_down,xsec_up) / xsec 
 
     #build the signal pdf
     point_file = rt.TFile(sig_point)
@@ -375,7 +466,9 @@ for sig_point in sig_lines:
     name = "higgsCombineRA3.Asymptotic.mH%s.root" % fake_mass_name
     os.chdir(output_dir)
 
-    if not options.nocombine: os.system("combine -M Asymptotic %s -m %s -n RA3" % (data_card_name, fake_mass_name))
+    if not options.nocombine:
+        print "run combine.."
+        os.system("combine -M Asymptotic %s -m %s -n RA3" % (data_card_name, fake_mass_name))
 
 
     #parse the limits
@@ -389,11 +482,54 @@ for sig_point in sig_lines:
     #move back to the home directory
     os.chdir("..")
 
+
+
 grid_results.print_summary()    
 
-limit_hists = grid_results.build_hist_limits()
+(exp_hist, exp_p_hist, exp_m_hist, obs_hist, delta_hist) = grid_results.build_hist_limits()
+limit_hists = [exp_hist, exp_p_hist, exp_m_hist, obs_hist, delta_hist]
 
 output_file.cd()
+
+band_obs =  grid_results.build_band(obs_hist)
+graph_obs = grid_results.build_graph_from_band(band_obs)
+graph_obs.SetLineWidth(6)
+graph_obs.Write("obs_graph")
+
+band_exp = grid_results.build_band(exp_hist)
+graph_exp = grid_results.build_graph_from_band(band_exp)
+graph_exp.SetLineStyle(7)
+graph_exp.SetLineColor(rt.kRed)
+graph_exp.SetLineWidth(6)
+graph_exp.Write("exp_0_graph")
+
+
+band_exp_p = grid_results.build_band(exp_p_hist)
+graph_exp_p = grid_results.build_graph_from_band(band_exp_p)
+graph_exp_p.SetLineStyle(7)
+graph_exp_p.SetLineWidth(6)
+graph_exp_p.SetLineColor(rt.kAzure-1)
+graph_exp_p.Write("exp_p_graph")
+
+band_exp_m = grid_results.build_band(exp_m_hist)
+graph_exp_m = grid_results.build_graph_from_band(band_exp_m)
+graph_exp_m.SetLineStyle(7)
+graph_exp_m.SetLineWidth(6)
+graph_exp_m.SetLineColor(rt.kAzure-1)
+graph_exp_m.Write("exp_m_graph")
+
+expected_band = grid_results.join_two_bands_into_region(band_exp_m, band_exp_p)
+graph_exp_band = grid_results.build_graph_from_band(expected_band)
+graph_exp_band.SetFillColor(rt.kBlue-6)
+graph_exp_band.SetLineWidth(6)
+graph_exp_band.SetLineStyle(0)
+graph_exp_band.SetFillStyle(3001)
+graph_exp_band.SetLineColor(rt.kBlue-6)
+graph_exp_band.Write("exp_graph")
+
+
+#graphs = [graph_obs, graph_exp, graph_exp_band]
+#multi_graph = rt.TMultiGraph("mg", "mg")
 
 for ii in limit_hists: ii.Write()
     
