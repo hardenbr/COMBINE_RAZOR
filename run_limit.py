@@ -86,7 +86,7 @@ class grid_results:
                     linear_slope = (1 - bin) / (bin - last_bin)
                     mass_limit_x = this_bin_mass + linear_slope * diff_mass
                     
-                    limit_top_down.append((mass_limit_x, y_bin_mass))
+                    #limit_top_down.append((mass_limit_x, y_bin_mass))
                     break
                 
                 elif xx == n_x - 1 and hist.GetBinContent(xx+1,yy) < 1: # we wont find a bin
@@ -94,7 +94,7 @@ class grid_results:
                     linear_slope = (1 - bin) / (bin - last_bin)
                     mass_limit_x = this_bin_mass + linear_slope * diff_mass
                     
-                    limit_top_down.append((mass_limit_x, y_bin_mass))
+                    #limit_top_down.append((mass_limit_x, y_bin_mass))
                     break
 
 
@@ -380,7 +380,10 @@ def make_data_card(name,hist_exp, hist_low_exp, hist_obs, sig_pdf, xsec_error, c
         scale_factor =1 
         if sideband != 0:
             scale_factor = categories.get_event_sum_hist(hist_exp,ii) / float(sideband)
-        
+        if sideband == 0:
+            sideband = 1
+            scale_factor = categories.get_event_sum_hist(hist_exp,ii) / float(sideband)
+            
         bkg_string = "bkg_norm_%i\tgmN %i\t\t" % (ii, sideband)
         
         for jj in range(1,n_cat+1):
@@ -522,9 +525,9 @@ expected_band = grid_results.join_two_bands_into_region(band_exp_m, band_exp_p)
 graph_exp_band = grid_results.build_graph_from_band(expected_band)
 graph_exp_band.SetFillColor(rt.kBlue-6)
 graph_exp_band.SetLineWidth(6)
-graph_exp_band.SetLineStyle(0)
+graph_exp_band.SetLineStyle(7)
 graph_exp_band.SetFillStyle(3001)
-graph_exp_band.SetLineColor(rt.kBlue-6)
+graph_exp_band.SetLineColor(rt.kAzure-1)
 graph_exp_band.Write("exp_graph")
 
 
