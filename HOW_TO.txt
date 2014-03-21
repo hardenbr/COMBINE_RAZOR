@@ -1,0 +1,5 @@
+#run basic 
+python run_limit.py -s signal_files_FULL.txt -o LIMIT 
+
+#nocombine
+python run_limit.py -s signal_files_FULL.txt -o LIMIT  --nocombine
