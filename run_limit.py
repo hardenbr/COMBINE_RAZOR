@@ -31,6 +31,7 @@ class grid_results:
         if (msq,mgl) not in self.grid:
             self.grid.append((msq,mgl,result))
 
+            
     def squark_masses(self):
         msq_masses = []
         for ii in self.grid: msq_masses.append(ii[0])
@@ -57,8 +58,11 @@ class grid_results:
         top_down_y = range(1,n_y+1)[::-1]
 
         limit_top_down = []
+        done = False
         for yy in top_down_y:
             for xx in range(1,n_x+1):
+
+                if done: continue
 
                 bin = hist.GetBinContent(xx,yy)
                 last_bin = hist.GetBinContent(xx-1,yy)
@@ -83,19 +87,29 @@ class grid_results:
                 
                 elif xx == n_x: # we didnt find a bin we must extrapolate the limit
 
+                    #extrapolate
                     linear_slope = (1 - bin) / (bin - last_bin)
-                    mass_limit_x = this_bin_mass + linear_slope * diff_mass
+                    mass_limit_x = this_bin_mass  + linear_slope * diff_mass
+
+                    last_point = limit_top_down[-1]
+                    last_point_x = last_point[0]
+                    last_point_y = last_point[1]
                     
-                    #limit_top_down.append((mass_limit_x, y_bin_mass))
+                    #extrapolate but cutt off at the last scanned point
+                    corr_limit_y =  ((-2 * diff_mass ) / (mass_limit_x - last_point_x))*(this_bin_mass - last_point_x) + last_point_y
+                    
+                    #limit_top_down.append((this_bin_mass, corr_limit_y))
+
+                    done = True
                     break
                 
                 elif xx == n_x - 1 and hist.GetBinContent(xx+1,yy) < 1: # we wont find a bin
 
                     linear_slope = (1 - bin) / (bin - last_bin)
-                    mass_limit_x = this_bin_mass + linear_slope * diff_mass
+                    mass_limit_x = this_bin_mass #+ linear_slope * diff_mass
                     
                     #limit_top_down.append((mass_limit_x, y_bin_mass))
-                    break
+                    #break
 
 
         return limit_top_down
@@ -136,6 +150,34 @@ class grid_results:
 
         return gr
 
+    def average_2d_hist(self,hist):
+        nx = hist.GetNbinsX()
+        ny = hist.GetNbinsY()
+
+        for xx in range(1, nx+1):
+            for yy in range(1, ny+1):
+                
+                if hist.GetBinContent(xx,yy) == 0: #do averaging
+                    sum = 0
+                    n_neighbors = 0
+                    
+                    if xx != nx:
+                        n_neighbors +=1
+                        sum+= hist.GetBinContent(xx+1,yy) #not at the right edge
+                    if xx != 1:
+                        n_neighbors +=1
+                        sum+= hist.GetBinContent(xx-1,yy) # not at the left edge
+                    if yy != ny:
+                        n_neighbors +=1
+                        sum+= hist.GetBinContent(xx,yy+1) #not at the top
+                    if yy != 1:
+                        n_neighbors +=1
+                        sum+=hist.GetBinContent(xx,yy-1) # not at the bottom
+
+                    hist.SetBinContent(xx,yy, float(sum) / float(n_neighbors))
+
+        return hist
+    
     def build_hist_limits(self):
         sq_masses = grid_results.squark_masses()
         gl_masses = grid_results.gluino_masses()
@@ -175,7 +217,9 @@ class grid_results:
             exp_m_hist.Fill(msq, mgl, exp_m)
             delta_hist.Fill(msq, mgl, delta)
 
-        return (exp_hist, exp_p_hist, exp_m_hist, obs_hist, delta_hist)
+
+        #average the hists
+        return map( lambda x: self.average_2d_hist(x) , [exp_hist, exp_p_hist, exp_m_hist, obs_hist, delta_hist])
 
 #container for a single limit result
 class limit_result:
@@ -209,15 +253,18 @@ class limit_result:
 
 
 def makebins(start_,end_,inc_,inc_inc_):
-    bin = start_
-    inc = inc_
-    list = []
-    while bin < end_:
-        list.append(bin)
-        bin+=inc
-        inc*=(1+inc_inc_)
-    return list
-
+        bin = start_
+        inc = inc_
+        list = []
+        while True:
+            list.append(bin)
+            bin+=inc
+            inc*= (1+inc_inc_)
+            
+            if bin > end_:
+                list.append(bin)
+                return list
+            
 def get_xsec(xsec_file, msq, mgl):
     msq = str(msq)
     mgl = str(mgl)
@@ -305,7 +352,7 @@ parser.add_option("--lumi", dest="lumi",
 
 (options, args) = parser.parse_args()
 
-bins = makebins(options.mrmin, 5., .1, .3)
+bins = makebins(options.mrmin, 4.5, .1, .2)
 
 def make_data_card(name,hist_exp, hist_low_exp, hist_obs, sig_pdf, xsec_error, categories):
     #parse category information
@@ -377,12 +424,14 @@ def make_data_card(name,hist_exp, hist_low_exp, hist_obs, sig_pdf, xsec_error, c
     #one line for each category"
     for ii in range(1,n_cat+1):
         sideband = int(categories.get_event_sum_hist(hist_low_exp, ii))
-        scale_factor =1 
+        extrap = categories.get_event_sum_hist(hist_exp,ii)
+
+        scale_factor = 1 
         if sideband != 0:
-            scale_factor = categories.get_event_sum_hist(hist_exp,ii) / float(sideband)
+            scale_factor =  float(extrap) / float(sideband)
         if sideband == 0:
             sideband = 1
-            scale_factor = categories.get_event_sum_hist(hist_exp,ii) / float(sideband)
+            scale_factor = categories.get_event_sum_hist(hist_exp,ii)
             
         bkg_string = "bkg_norm_%i\tgmN %i\t\t" % (ii, sideband)
         
@@ -494,6 +543,7 @@ limit_hists = [exp_hist, exp_p_hist, exp_m_hist, obs_hist, delta_hist]
 
 output_file.cd()
 
+#solid line for the observation
 band_obs =  grid_results.build_band(obs_hist)
 graph_obs = grid_results.build_graph_from_band(band_obs)
 graph_obs.SetLineWidth(6)
@@ -506,25 +556,26 @@ graph_exp.SetLineColor(rt.kRed)
 graph_exp.SetLineWidth(6)
 graph_exp.Write("exp_0_graph")
 
-
+#lines for the expected region
 band_exp_p = grid_results.build_band(exp_p_hist)
 graph_exp_p = grid_results.build_graph_from_band(band_exp_p)
 graph_exp_p.SetLineStyle(7)
-graph_exp_p.SetLineWidth(6)
+graph_exp_p.SetLineWidth(3)
 graph_exp_p.SetLineColor(rt.kAzure-1)
 graph_exp_p.Write("exp_p_graph")
 
 band_exp_m = grid_results.build_band(exp_m_hist)
 graph_exp_m = grid_results.build_graph_from_band(band_exp_m)
 graph_exp_m.SetLineStyle(7)
-graph_exp_m.SetLineWidth(6)
+graph_exp_m.SetLineWidth(3)
 graph_exp_m.SetLineColor(rt.kAzure-1)
 graph_exp_m.Write("exp_m_graph")
 
+#fill ther region for the expected
 expected_band = grid_results.join_two_bands_into_region(band_exp_m, band_exp_p)
 graph_exp_band = grid_results.build_graph_from_band(expected_band)
-graph_exp_band.SetFillColor(rt.kBlue-6)
-graph_exp_band.SetLineWidth(6)
+graph_exp_band.SetFillColor(rt.kBlue-10)
+graph_exp_band.SetLineWidth(3)
 graph_exp_band.SetLineStyle(7)
 graph_exp_band.SetFillStyle(3001)
 graph_exp_band.SetLineColor(rt.kAzure-1)
