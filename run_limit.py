@@ -290,7 +290,7 @@ def get_xsec(xsec_file, msq, mgl):
                 nlo_xsec_plus = float(split[14])
                 nlo_xsec_minus = float(split[16])
 
-                return (nlo_xsec,nlo_xsec_plus,nlo_xsec_minus)
+                return (nlo_xsec+lo_xsec, nlo_xsec_plus+nlo_xsec_plus, nlo_xsec_minus+nlo_xsec_minus)
             
     print "\n\nERROR:CROSS SECTION WAS NOT FOUND\n\n"
     return (-1,-1,-1)
