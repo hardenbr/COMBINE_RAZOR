@@ -5,28 +5,12 @@ import random
 
 rt.gROOT.SetBatch(True);
 
-#container for limit categories
-#categories are numbered 1,2,3,4...
-class limit_categories:
-    def __init__(self):
-        self.ncategories = 0
-        self.dict = {}
-
-    def add_category(self, bins):
-        self.ncategories += 1
-        self.dict[self.ncategories] = bins    
-
-    def get_event_sum_hist(self, hist, category):
-        sum = 0
-        for ii in self.dict[category]:
-            sum+= hist.GetBinContent(ii)
-        return sum        
 
 #container for full grid of limit results
 class grid_results:
-    def __init__(self):
+    def __init__(self, t5gg):
         self.grid = []
-    
+        self.t5gg = t5gg
     def add_point(self,msq,mgl,result):
         if (msq,mgl) not in self.grid:
             self.grid.append((msq,mgl,result))
@@ -55,12 +39,18 @@ class grid_results:
         n_x = hist.GetNbinsX()
         n_y = hist.GetNbinsY()
 
-        top_down_y = range(1,n_y+1)[::-1]
+        top_down_y = range(1,n_y+1)[::-1] #reverse the range 
 
         limit_top_down = []
         done = False
         for yy in top_down_y:
-            for xx in range(1,n_x+1):
+            for xx in xrange(1,n_x+1):
+                #don't consider the beyong m_ne
+                if self.t5gg:
+                    bin_mass_gl = hist.GetXaxis().GetBinCenter(xx)
+                    bin_mass_neu = hist.GetYaxis().GetBinCenter(yy)
+
+                    if bin_mass_neu > bin_mass_gl: continue
 
                 if done: continue
 
@@ -86,7 +76,9 @@ class grid_results:
                     break
                 
                 elif xx == n_x: # we didnt find a bin we must extrapolate the limit
-
+                    done = True
+                    break
+                    
                     #extrapolate
                     linear_slope = (1 - bin) / (bin - last_bin)
                     mass_limit_x = this_bin_mass  + linear_slope * diff_mass
@@ -154,8 +146,15 @@ class grid_results:
         nx = hist.GetNbinsX()
         ny = hist.GetNbinsY()
 
-        for xx in range(1, nx+1):
-            for yy in range(1, ny+1):
+        for xx in xrange(1, nx+1):
+            for yy in rxange(1, ny+1):
+
+                #don't consider m_neu > m_gl
+                if self.t5gg:
+                    bin_mass_gl = hist.GetXaxis().GetBinCenter(xx)
+                    bin_mass_neu = hist.GetYaxis().GetBinCenter(yy)
+
+                    if bin_mass_neu > bin_mass_gl: continue
                 
                 if hist.GetBinContent(xx,yy) == 0: #do averaging
                     sum = 0
@@ -181,20 +180,31 @@ class grid_results:
     def build_hist_limits(self):
         sq_masses = grid_results.squark_masses()
         gl_masses = grid_results.gluino_masses()
-        mres = 100
-        mres2 = mres /2 
+        mres_x = 100
+        mres_y = 100
+
+        #smaller binning for t5gg
+        if self.t5gg:
+            mres_x = 50
+            mres_y = 50
+        
+        mres2_x = mres_x / 2
+        mres2_y = mres_y / 2 
 
         min_x, max_x = min(sq_masses), max(sq_masses)
         min_y, max_y = min(gl_masses), max(gl_masses)
 
-        n_bins_x = ((max_x - min_x) / mres) + 1
-        n_bins_y = ((max_y - min_y) / mres) + 1
+        n_bins_x = ((max_x - min_x) / mres_x) + 1
+        n_bins_y = ((max_y - min_y) / mres_y) + 1
         
-        exp_hist = rt.TH2F("exp_0", "expected limit", n_bins_x, min_x-mres2, max_x+mres2, n_bins_y, min_y-mres2, max_y+mres2)
-        exp_p_hist = rt.TH2F("exp_p", "expected limit plus", n_bins_x, min_x-mres2, max_x+mres2, n_bins_y, min_y-mres2, max_y+mres2)
-        exp_m_hist = rt.TH2F("exp_m", "expected limit minus", n_bins_x, min_x-mres2, max_x+mres2, n_bins_y, min_y-mres2, max_y+mres2)
-        obs_hist = rt.TH2F("obs", "obs limit",  n_bins_x, min_x-mres2, max_x+mres2, n_bins_y, min_y-mres2, max_y+mres2)
-        delta_hist = rt.TH2F("delta", "delta limit",  n_bins_x, min_x-mres2, max_x+mres2, n_bins_y, min_y-mres2, max_y+mres2)
+        exp_hist = rt.TH2F("exp_0", "expected limit", n_bins_x, min_x-mres2_x, max_x+mres2_x, n_bins_y, min_y-mres2_y, max_y+mres2_y)
+        exp_theory = rt.TH2F("exp_th", "limit xsec excluded", n_bins_x, min_x-mres2_x, max_x+mres2_x, n_bins_y, min_y-mres2_y, max_y+mres2_y)
+        exp_p_hist = rt.TH2F("exp_p", "expected limit plus", n_bins_x, min_x-mres2_x, max_x+mres2_x, n_bins_y, min_y-mres2_y, max_y+mres2_y)
+        exp_m_hist = rt.TH2F("exp_m", "expected limit minus", n_bins_x, min_x-mres2_x, max_x+mres2_x, n_bins_y, min_y-mres2_y, max_y+mres2_y)
+        obs_hist = rt.TH2F("obs", "obs limit",  n_bins_x, min_x-mres2_x, max_x+mres2_x, n_bins_y, min_y-mres2_y, max_y+mres2_y)
+        obs_p_hist = rt.TH2F("obs_p", "obs limit plus sigma",  n_bins_x, min_x-mres2_x, max_x+mres2_x, n_bins_y, min_y-mres2_y, max_y+mres2_y)
+        obs_m_hist = rt.TH2F("obs_m", "obs limit minus sigma",  n_bins_x, min_x-mres2_x, max_x+mres2_x, n_bins_y, min_y-mres2_y, max_y+mres2_y)
+        delta_hist = rt.TH2F("delta", "delta limit",  n_bins_x, min_x-mres2_x, max_x+mres2_x, n_bins_y, min_y-mres2_y, max_y+mres2_y)        
 
         for point in self.grid:
             #prase the grid point
@@ -202,24 +212,39 @@ class grid_results:
             mgl = point[1]
             res = point[2]
 
+            (xsec,xsec_down,xsec_up) = (-1, -1, -1)
+
+            if options.t5gg:
+                (xsec, xsec_down, xsec_up) = get_xsec_t5gg(options.xsec_file, msq)
+            else:
+                (xsec, xsec_down, xsec_up) = get_xsec(options.xsec_file, msq, mgl)
+                        
             #parse the values from the limit
             exp = res.get_exp()
             exp_p = res.get_exp_p()
             exp_m = res.get_exp_m()
             obs = res.get_obs()
 
+            #convert the signal strength back to a cross section
+            #reconvert to signal strength with new xsec 
+            obs_p = (obs * xsec) / (xsec + xsec_up)
+            obs_m = (obs * xsec) / (xsec - xsec_down)
+            exp_th = exp * xsec * 1000
+
             delta = (exp - obs) / (exp_p - exp_m)
 
             #fill the values
             exp_hist.Fill(msq, mgl, exp)
-            obs_hist.Fill(msq, mgl, obs)            
+            exp_theory.Fill(msq, mgl, exp_th)
+            obs_hist.Fill(msq, mgl, obs)
+            obs_p_hist.Fill(msq, mgl, obs_p)
+            obs_m_hist.Fill(msq, mgl, obs_m)            
             exp_p_hist.Fill(msq, mgl, exp_p)
             exp_m_hist.Fill(msq, mgl, exp_m)
             delta_hist.Fill(msq, mgl, delta)
 
-
-        #average the hists
-        return map( lambda x: self.average_2d_hist(x) , [exp_hist, exp_p_hist, exp_m_hist, obs_hist, delta_hist])
+        #average the hists and return them
+        return map( lambda x: self.average_2d_hist(x) , [exp_hist, exp_p_hist, exp_m_hist, obs_hist, obs_p_hist, obs_m_hist, exp_theory, delta_hist])
 
 #container for a single limit result
 class limit_result:
@@ -231,7 +256,7 @@ class limit_result:
         itlist = rt.gDirectory.Get("iterlist")
 
         #loop over the tree and parse the limits
-        for event in range(limit_tree.GetEntries()):            
+        for event in xrange(limit_tree.GetEntries()):            
             entry = itlist.Next()        
             limit_tree.GetEntry(entry)
 
@@ -240,17 +265,15 @@ class limit_result:
                 self.obs = limit_tree.limit
             elif abs(limit_tree.quantileExpected - .16) < .001: #lower quantile
                 self.exp_m = limit_tree.limit
-            elif abs(limit_tree.quantileExpected - .84) < .001: #expected
+            elif abs(limit_tree.quantileExpected - .84) < .001: #upper quantile
                 self.exp_p = limit_tree.limit
-            elif abs(limit_tree.quantileExpected - .5) < .001: #upper quantile
+            elif abs(limit_tree.quantileExpected - .5) < .001: #expected
                 self.exp = limit_tree.limit            
 
     def get_obs(self): return self.obs
     def get_exp(self): return self.exp
     def get_exp_p(self): return self.exp_p
     def get_exp_m(self): return self.exp_m
-
-
 
 def makebins(start_,end_,inc_,inc_inc_):
         bin = start_
@@ -290,7 +313,7 @@ def get_xsec(xsec_file, msq, mgl):
                 nlo_xsec_plus = float(split[14])
                 nlo_xsec_minus = float(split[16])
 
-                return (nlo_xsec+lo_xsec, nlo_xsec_plus+nlo_xsec_plus, nlo_xsec_minus+nlo_xsec_minus)
+                return (nlo_xsec,nlo_xsec_plus,nlo_xsec_minus)
             
     print "\n\nERROR:CROSS SECTION WAS NOT FOUND\n\n"
     return (-1,-1,-1)
@@ -307,24 +330,22 @@ def get_xsec_t5gg(xsec_file,mgl):
         if mgl in line:
             #check the ordering is correct
             split = line.split()
-            idx1 =  split.index(msq)
-            idx2 =  split.index(mgl)
-            if idx1 < idx2:
-                lo_xsec = float(split[6])
-                lo_xsec_plus = float(split[8])
-                lo_xsec_minus = float(split[10])
 
-                nlo_xsec = float(split[12])
-                nlo_xsec_plus = float(split[14])
-                nlo_xsec_minus = float(split[16])
+            xsec = float(split[1])
+            xsec_plus = (float(split[2])) * lo_xsec
+            xsec_minus = (float(split[2])) * lo_xsec
 
-                return (nlo_xsec+lo_xsec, nlo_xsec_plus+nlo_xsec_plus, nlo_xsec_minus+nlo_xsec_minus)
+            return (xsec, xsec_plus, xsec_minus)
             
     print "\n\nERROR:CROSS SECTION WAS NOT FOUND\n\n"
     return (-1,-1,-1)
 
+
 parser = OptionParser()
 
+parser.add_option(, "--t5gg", dest="t5gg",
+                 help="flag to run t5gg limit"
+                 action="store_true",default=False)
 
 parser.add_option("-f", "--file", dest="filename",
                   help="weight_hist.root file to analyze",
@@ -346,13 +367,9 @@ parser.add_option("-x", "--xsec", dest="xsec_file",
                  default="Spectra_gsq_B_8TeV.xsec",
                  action="store",type="string")
 
-parser.add_option(, "--t5gg", dest="t5gg",
-                 help="flag to run t5gg limit"
-                 action="store_true")
-
 parser.add_option("-s", "--signal", dest="sig_files",
                  help="text file containing a list of signal",
-                 default="signal_files.txt",
+                 default="signal_files_jes.txt",
                  action="store",type="string")
 
 parser.add_option("-o", "--output_dir", dest="out_dir",
@@ -377,132 +394,168 @@ parser.add_option("--rsq2", dest="rsq2",
 
 parser.add_option("--lumi", dest="lumi",
                  help="Lumi to scale signal xsec to",
-                 default=19.8,
+                 default=19.7,
                  action="store",type="float")
 
+parser.add_option("--pdf", dest="pdf",
+                 help="text file containing xsec and acceptance uncertainties",
+                 default="Spectra_gsq_B_dipho_envpdfuncert.dat",
+                 action="store",type="string")
 
 
 (options, args) = parser.parse_args()
 
 bins = makebins(options.mrmin, 4.5, .1, .2)
 
-def make_data_card(name,hist_exp, hist_low_exp, hist_obs, sig_pdf, xsec_error, categories):
-    #parse category information
-    n_cat = categories.ncategories
-    cat_dict = categories.dict
+def make_shape_file(dir, hist_exp, hist_exp_up, hist_exp_down, hist_obs, sig_pdf, sig_pdf_up, sig_pdf_down, jes_up, jes_down, msq, mgl):
+    outfile = rt.TFile(dir+"/"+"shapes_%i_%i.root" % (msq, mgl), "RECREATE") 
+    outfile.cd()
 
-    outfile = open(name,"w")
-#    outfile.write("imax 1\n")
-#    outfile.write("jmax %i\n" % n_cat)
-#    outfile.write("kmax 3\n\n")
+    hist_exp.Write("bkg")
+    hist_exp_up.Write("bkg_normUp")
+    hist_exp_down.Write("bkg_normDown")
+    sig_pdf.Write("sig")
+    hist_obs.Write("data_obs")
 
-    ##################################################
+    sig_pdf_up.Write("sig_jesUp")
+    sig_pdf_down.Write("sig_jesDown")
+
+    jes_up.Write("bkg_jesUp")
+    jes_down.Write("bkg_jesDown")
+
+    outfile.Close()
     
+def make_data_card(output_dir, name, hist_exp, hist_exp_up, hist_exp_down, hist_obs, sig_pdf,sig_pdf_up, sig_pdf_down, jes_up, jes_down, msq, mgl):
+
+    filename =  output_dir + "/" + name
+
+    #first build the shape file shapes_msq_mgl
+    make_shape_file(output_dir, hist_exp, hist_exp_up, hist_exp_down, hist_obs, sig_pdf, sig_pdf_up, sig_pdf_down, jes_up, jes_down, msq, mgl)
+    
+    #parse category information
+    outfile = open(filename,"w")
+    ##################################################
+    #SHAPE INFORMATION
+    shape_string = "shapes * * shapes_%i_%i.root $PROCESS $PROCESS_$SYSTEMATIC" % (msq,mgl)
+    outfile.write(shape_string+"\n\n")
+                  
+    ##################################################    
     #enumerate the channels
     #NAMES FOR CHANNELS
-    
-    channel_string="bin\t\t"
-    for ii in range(1,n_cat+1): channel_string+="bin%i\t" % ii
+    channel_string = "bin \t\t gg"
     outfile.write(channel_string+"\n")
 
     #parse the data expectations
-    obs_string="observation\t"
-    for ii in range(1,n_cat+1):
-        sum = categories.get_event_sum_hist(hist_obs, ii)
-        obs_string += "%i\t" % sum
+    obs_string="observation\t %i" % hist_obs.Integral()
     outfile.write(obs_string+"\n\n")
     
     ##################################################
     #EXPECATATIONS FOR SIGNAL AND BKG
     
     #1 signal and 1 background for each category
-    bin_string = "bin\t"
-    for ii in range(1,n_cat+1): bin_string += "%i\t %i\t" % (ii,ii)
+    bin_string = "bin\t\tgg\tgg"
     outfile.write(bin_string+"\n")
 
     #names for the processes
-    process_string = "process\t"
-    for ii in range(1,n_cat+1): process_string += "sig%i\tbkg%i\t" % (ii,ii) 
+    process_string = "process\t\t1\t-1"
     outfile.write(process_string+"\n")
 
     #numerical labels for the separate processes
-    process_string2 = "process\t"
-    for ii in range(1,n_cat+1): process_string2 += "%i\t%i\t" % (ii*-1,ii)
+    process_string2 = "process\t\tbkg\tsig"
     outfile.write(process_string2+"\n")
 
     #rate expected for each of the backgrounds / signals
-    rate_string = "rate\t"
-    for ii in range(1,n_cat+1):
-        sum_bkg = categories.get_event_sum_hist(hist_exp, ii)
-        sum_sig = categories.get_event_sum_hist(sig_pdf, ii)
-
-        rate_string += "%2.2f\t%2.2f\t" % (sum_sig, sum_bkg)
+    nbkg = hist_exp.Integral()
+    nobs = hist_obs.Integral()
+    nsig = sig_pdf.Integral()
+    rate_string = "rate\t\t%2.2f\t%2.2f" % (nbkg, nsig)
     outfile.write(rate_string+"\n\n")
 
     ##################################################
     #SYSTEMATICS
 
+    #parse the pdf errors for the mass point
+    (rate_error, acc_error) = get_pdf_errors(msq, mgl)
+
     #LUMI lognormal
-    lumi_string = "lumi\t\tlnN\t\t"
-    for ii in range(1,n_cat+1): lumi_string+="1.026\t-\t"
+    lumi_string = "lumi\t\tlnN\t\t-\t1.026 "
     outfile.write(lumi_string+"\n")
 
-    #SIGNAL CROSS SECTION lognormal
-    xsec_string = "xs_sig\t\tlnN\t\t" 
-    for ii in range(1,n_cat+1): xsec_string+="%2.2f\t-\t" % (1 + xsec_error)
-    outfile.write(xsec_string+"\n")
+    #PDF - RATE ERROR 
+    pdf_rate_string = "rate_pdf\tlnN\t-\t%2.3f" % (1 + 0)
+#    outfile.write(pdf_rate_string+"\n")
+    
+    #PDF - ACCEPT ERROR 
+    pdf_acc_string = "acc_pdf\tlnN\t-\t%2.3f" % (1 + 0)
+#    outfile.write(pdf_acc_string+"\n")
+    
+    #BACKGROUND NORMALIZATION 
+    bkg_string = "norm shape\t1\t-"         
+    outfile.write(bkg_string+"\n")
 
-    #BACKGROUND NORMALIZATION gamma
-    #one line for each category"
-    for ii in range(1,n_cat+1):
-        sideband = int(categories.get_event_sum_hist(hist_low_exp, ii))
-        extrap = categories.get_event_sum_hist(hist_exp,ii)
+    #JES BKG SHAPE
+    jes_bkg_string = "jes shape\t1\t-"         
+    outfile.write(jes_bkg_string+"\n")
 
-        scale_factor = 1 
-        if sideband != 0:
-            scale_factor =  float(extrap) / float(sideband)
-        if sideband == 0:
-            sideband = 1
-            scale_factor = categories.get_event_sum_hist(hist_exp,ii)
-            
-        bkg_string = "bkg_norm_%i\tgmN %i\t\t" % (ii, sideband)
+    #JES SIGNAL SHAPE
+    jes_sig_string = "jes shape\t-\t1"         
+    outfile.write(jes_sig_string+"\n")
+    
+
+#from ra3privatesignalmc TWIKI
+#pdf uncert file format is the following: printf("%i %i %i %i %i %f %f\n",nevents,mgluino,msquark,mbino,mwino,xsecpdferrs,acceppdferrs);
+def get_pdf_errors(msq, mgl):
+    pdf_file = open(options.pdf)
+    lines = map(lambda x: x.rstrip("\n"), pdf_file.readlines())
+
+    for line in lines:
+        split = line.split()
+
+        mgl_line = int(split[1])
+        msq_line = int(split[2])
         
-        for jj in range(1,n_cat+1):
-            if ii == jj:
-                bkg_string += "-\t%2.2f\t" % scale_factor
-            else:
-                bkg_string+= "-\t-\t"
-        outfile.write(bkg_string+"\n")
+        rate_error = float(split[5])
+        acc_error = float(split[6])
+        
+        if msq == msq_line and mgl == mgl_line:
+            return (rate_error/100., acc_error/100.)
 
-def run_limit(data_card): pass
 
-def parse_limit(root_file): pass
-
-def draw_grid(): pass
-
+    print "ERROR: NO MATCHING PDF UNCERTAINTY"
+    exit(1)
+        
+    
 #################
 ##MAIN SCRIPT####
 #################
 
 #grab the file contianing th expectation histogram
 in_file = rt.TFile(options.filename)
+exp_up = in_file.Get("hist_high_up")
+exp_down = in_file.Get("hist_high_down")
 exp_hist = in_file.Get("hist_high_pred")
 exp_hist_low = in_file.Get("hist_low_pred")
 obs_hist = in_file.Get("hist_high_data")
+
+jes_high_up = in_file.Get("hist_high_data_up")
+jes_high_down = in_file.Get("hist_high_data_down")
+
+jes_up = in_file.Get("hist_low_data_up")
+jes_up.Scale(float(jes_high_up.Integral()) / float(jes_up.Integral()))
+
+jes_down = in_file.Get("hist_low_data_down")
+jes_down.Scale(float(jes_high_down.Integral()) / float(jes_down.Integral()))
 
 #grab the file with lines of signal files for grid
 sig_txt = open(options.sig_files,"r")
 sig_lines = map(lambda x:x.rstrip("\n"), sig_txt.readlines())
 
 #declare the grid result
-grid_results = grid_results()
+grid_results = grid_results(options.t5gg)
 
 #output directory
 output_dir = options.out_dir
 
-#define the categories
-limit_cats = limit_categories()
-for ii in range(5,11): limit_cats.add_category([ii])
 #limit_cats.add_category([5,6,7,8,9,10])
 
 output_file = rt.TFile(output_dir+"/limit_out.root","RECREATE")
@@ -511,16 +564,17 @@ for sig_point in sig_lines:
 
     #parse the masses
     signal_name = sig_point.split("/")[-1]
+
     msq = int(signal_name.split("_")[1])
     mgl = int(signal_name.split("_")[2])
-
+            
     #errors are assymetric, pick the larger of the two values for error
     if not options.t5gg:
         (xsec, xsec_down, xsec_up) = get_xsec(options.xsec_file, msq, mgl)
     else:
-        (xsec, xsec_down, xsec_up) = get_xsec_t5gg(options.xsec_file, mgl)
+        (xsec, xsec_down, xsec_up) = get_xsec_t5gg(options.xsec_file, msq) #msq is mgl for t5gg mgl-->mneutralino
+
     if options.debug: print "xsec, xsec_down, xsec_up", (xsec, xsec_down, xsec_up)
-    xsec_error = min(xsec_down,xsec_up) / xsec 
 
     #build the signal pdf
     point_file = rt.TFile(sig_point)
@@ -530,7 +584,12 @@ for sig_point in sig_lines:
     bin_array = array.array("d", bins)
 
     signal_pdf  = rt.TH1F("signalpdf_%i_%i" % (msq,mgl) ,"Signal PDF", len(bins)-1, bin_array)
-    tree.Draw("(PFMR/1000.)>>signalpdf_%i_%i"%(msq, mgl), "(PFMR/1000.) > %f && PFR^2 > %f && iSamp==0" % (options.mrmin, options.rsq1))
+    signal_pdf_up  = rt.TH1F("signalpdf_%i_%i_up" % (msq,mgl) ,"Signal PDF", len(bins)-1, bin_array)
+    signal_pdf_down  = rt.TH1F("signalpdf_%i_%i_down" % (msq,mgl) ,"Signal PDF", len(bins)-1, bin_array)
+
+    tree.Draw("(PFMR/1000.)>>signalpdf_%i_%i"%(msq, mgl), "(PFMR/1000.) > %f && PFR^2 > %f && iSamp==0" % (options.mrmin, options.rsq2))
+    tree.Draw("(PFMR_UP/1000.)>>signalpdf_%i_%i_up"%(msq, mgl), "(PFMR_UP/1000.) > %f && PFR_UP^2 > %f && iSamp==0" % (options.mrmin, options.rsq2))
+    tree.Draw("(PFMR_DOWN/1000.)>>signalpdf_%i_%i_down"%(msq, mgl), "(PFMR_DOWN/1000.) > %f && PFR_DOWN^2 > %f && iSamp==0" % (options.mrmin, options.rsq2))
 
     #scale to the cross sections * luminosity * efficiency
     scale_factor= xsec * 1000.0 * (1. / 10000.) * options.lumi
@@ -539,14 +598,15 @@ for sig_point in sig_lines:
         print "pre scaling integral:", signal_pdf.Integral()
 
     signal_pdf.Scale(scale_factor) #xsec * (femto/pico) * (1/ngen) * lumi
+    signal_pdf_up.Scale(scale_factor)
+    signal_pdf_down.Scale(scale_factor)
     signal_pdf.Write()
     
     if options.debug: print "SIGNAL NORM", signal_pdf.Integral()
 
-    #build the datacard
+    #build the datacard and the file containing shapes
     data_card_name = "datacard_msq_%s_mgl_%s.txt" % (msq,mgl)
-    data_card_path = output_dir + "/" + data_card_name
-    make_data_card(data_card_path, exp_hist, exp_hist_low, obs_hist, signal_pdf, xsec_error, limit_cats)
+    make_data_card(output_dir, data_card_name, exp_hist, exp_up, exp_down, obs_hist, signal_pdf,signal_pdf_up, signal_pdf_down, jes_up, jes_down, msq, mgl)
 
     #run the datacard
     fake_mass_name = str(msq)[:2]+str(mgl)[:2]
@@ -556,7 +616,6 @@ for sig_point in sig_lines:
     if not options.nocombine:
         print "run combine.."
         os.system("combine -M Asymptotic %s -m %s -n RA3" % (data_card_name, fake_mass_name))
-
 
     #parse the limits
     limit_file = rt.TFile(name)
@@ -569,20 +628,34 @@ for sig_point in sig_lines:
     #move back to the home directory
     os.chdir("..")
 
-
-
 grid_results.print_summary()    
 
-(exp_hist, exp_p_hist, exp_m_hist, obs_hist, delta_hist) = grid_results.build_hist_limits()
-limit_hists = [exp_hist, exp_p_hist, exp_m_hist, obs_hist, delta_hist]
+(exp_hist, exp_p_hist, exp_m_hist, obs_hist, obs_p_hist, obs_m_hist, exp_theory, delta_hist) = grid_results.build_hist_limits()
+limit_hists = [exp_hist, exp_p_hist, exp_m_hist, obs_hist, obs_p_hist, obs_m_hist, delta_hist]
 
 output_file.cd()
+
+#cross section excluded
+exp_theory.Write("exp_theory")
 
 #solid line for the observation
 band_obs =  grid_results.build_band(obs_hist)
 graph_obs = grid_results.build_graph_from_band(band_obs)
 graph_obs.SetLineWidth(6)
+graph_obs.SetLineStyle(9)
 graph_obs.Write("obs_graph")
+
+band_obs_p =  grid_results.build_band(obs_p_hist)
+graph_obs_p = grid_results.build_graph_from_band(band_obs_p)
+graph_obs_p.SetLineWidth(6)
+#graph_obs_p.SetLineStyle(9)
+graph_obs_p.Write("obs_p_graph")
+
+band_obs_m =  grid_results.build_band(obs_m_hist)
+graph_obs_m = grid_results.build_graph_from_band(band_obs_m)
+graph_obs_m.SetLineWidth(6)
+#graph_obs_m.SetLineStyle(9)
+graph_obs_m.Write("obs_m_graph")
 
 band_exp = grid_results.build_band(exp_hist)
 graph_exp = grid_results.build_graph_from_band(band_exp)
