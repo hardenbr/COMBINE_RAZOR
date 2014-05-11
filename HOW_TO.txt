@@ -3,3 +3,6 @@ python run_limit.py -s signal_files_FULL.txt -o LIMIT
 
 #nocombine
 python run_limit.py -s signal_files_FULL.txt -o LIMIT  --nocombine
+
+#t5gg
+python run_limit_shapes.py --t5gg -f weight_hist_control_jes.root -x gg_8TeV.xsec -s test.list -o TEST_T5gg --nocombine -v
